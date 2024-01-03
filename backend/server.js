@@ -1,54 +1,76 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const multer = require('multer');
 const cors = require('cors');
 const { exec } = require('child_process');
+const fs = require('fs');
 const uploadFileToS3 = require('./s3Uploader'); // Ensure this module is correctly implemented
-
 require('dotenv').config();
 
 const app = express();
+
+// Use CORS middleware for express
 app.use(cors());
 
-const upload = multer({ storage: multer.memoryStorage() });
+const server = http.createServer(app);
 
-app.post('/upload', upload.single('file'), async (req, res) => {
-    if (!req.file) {
-        return res.status(400).send({ message: 'Please upload a file.' });
-    }
+// Set up socket.io with CORS
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000", // Frontend URL
+    methods: ["GET", "POST"]
+  }
+});
 
-    const fileName = req.file.originalname;
-    const bucketName = 'togdatabase'; // Replace with your actual S3 bucket name
-    const language = req.body.language;
+io.on('connection', (socket) => {
+    console.log('User connected');
 
-    try {
-        await uploadFileToS3(req.file.buffer, fileName, bucketName);
-        console.log('File uploaded successfully to S3.');
+    socket.on('sendChunk', async (data) => {
+        const { buffer, language } = data;
+        const fileName = `chunk_${Date.now()}.webm`;
+        const filePath = `/tmp/${fileName}`;
 
-        // Set the environment for the Python subprocess
-        const childEnv = process.env;
-        exec(`python3 process_audio.py ${fileName} ${language}`, { env: childEnv }, (error, stdout, stderr) => {
-            if (error) {
-                console.error(`Error: ${error.message}`);
-                return res.status(500).send({ message: 'Error processing file.' });
-            }
-            if (stderr) {
-                console.error(`Stderr: ${stderr}`);
-                return res.status(500).send({ message: 'Error processing file.' });
-            }
+        // Save buffer to a temporary file
+        fs.writeFileSync(filePath, Buffer.from(buffer));
 
-            // Log the URL to the console
-            console.log('Speech URL:', stdout.trim());
+        try {
+            // Upload to S3
+            await uploadFileToS3(fs.readFileSync(filePath), fileName, 'togdatabase');
+            console.log('File uploaded successfully to S3.');
 
-            // Sending the speech URL back to the client
-            res.send({ message: 'File processed successfully.', speechUrl: stdout.trim() });
-        });
-    } catch (error) {
-        console.error('Error uploading to S3:', error);
-        res.status(500).send({ message: 'Error uploading file.' });
-    }
+            // Process the audio file
+            const childEnv = process.env;
+            exec(`python3 process_audio.py ${fileName} ${language}`, { env: childEnv }, (error, stdout, stderr) => {
+                if (error) {
+                    console.error(`Error: ${error.message}`);
+                    socket.emit('processingError', 'Error processing file.');
+                    return;
+                }
+                if (stderr) {
+                    console.error(`Stderr: ${stderr}`);
+                    socket.emit('processingError', 'Error processing file.');
+                    return;
+                }
+
+                // Sending the speech URL back to the client
+                socket.emit('chunkProcessed', stdout.trim());
+            });
+        } catch (error) {
+            console.error('Error uploading to S3 or processing file:', error);
+            socket.emit('processingError', 'Error processing file.');
+        } finally {
+            // Clean up temporary file
+            fs.unlinkSync(filePath);
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected');
+    });
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+server.listen(PORT, () => {
     console.log(`Server is listening on port ${PORT}`);
 });

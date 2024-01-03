@@ -4,12 +4,10 @@ import openai
 import os
 from io import BytesIO
 import uuid
-from datetime import datetime
+
 openai.api_key = os.getenv('OPENAI_API_KEY')
 if not openai.api_key:
     raise ValueError('The OPENAI_API_KEY environment variable is not set.')
-
-client = openai.OpenAI()
 
 def download_from_s3(bucket_name, file_key, local_file_path):
     s3 = boto3.client('s3')
@@ -17,17 +15,17 @@ def download_from_s3(bucket_name, file_key, local_file_path):
 
 def translate_audio_to_english(file_path):
     with open(file_path, 'rb') as audio_file:
-        response = client.audio.translations.create(
+        response = openai.audio.translations.create(
             model="whisper-1",
             file=audio_file
         )
     return response.text
 
 def translate_text_to_language(text, target_language):
-    if target_language.lower() == 'English':
+    if target_language.lower() == 'english':
         return text
     prompt = f"Translate this text to {target_language}: {text}"
-    response = client.chat.completions.create(
+    response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=[
             {"role": "system", "content": "You are a translator."},
@@ -41,7 +39,7 @@ def translate_text_to_language(text, target_language):
         return "Translation not available."
 
 def text_to_speech(text):
-    response = client.audio.speech.create(
+    response = openai.audio.speech.create(
         model="tts-1",
         input=text,
         voice="shimmer"
@@ -73,12 +71,3 @@ if __name__ == '__main__':
     speech_url = upload_to_s3(speech_data, target_language)
 
     print(speech_url)
-
-
-
-
-
-
-
-
-    

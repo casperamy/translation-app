@@ -4,7 +4,7 @@ import AudioRecorder from './components/translate';
 const App = () => {
   return (
     <div className="App">
-      <h1>Translatewoierh</h1>
+      <h1>Translate on the Go</h1>
       <AudioRecorder />
     </div>
   );
