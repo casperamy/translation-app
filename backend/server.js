@@ -1,5 +1,4 @@
 require('dotenv').config();
-
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -25,6 +24,25 @@ io.on('connection', (socket) => {
 
     socket.on('disconnect', () => {
         console.log('User disconnected');
+    });
+
+    socket.on('convertToSpeech', (data) => {
+        const { text } = data;
+        exec(`python3 translated_speech.py "${text.replace(/"/g, '\\"')}"`, (error, stdout, stderr) => {
+            if (error) {
+                console.error('Error in text_to_speech:', error);
+                socket.emit('ttsError', { message: 'Failed to generate speech.' });
+                return;
+            }
+            fs.readFile('output.mp3', (err, data) => {
+                if (err) {
+                    console.error('Error reading audio file:', err);
+                    socket.emit('ttsError', { message: 'Failed to read speech file.' });
+                    return;
+                }
+                socket.emit('audioData', { audio: data.toString('base64') });
+            });
+        });
     });
 });
 
