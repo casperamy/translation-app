@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import io from 'socket.io-client';
+import './translate.css'; // Make sure to import your CSS file
 
 const AudioRecorder = () => {
     const [isRecording, setIsRecording] = useState(false);
@@ -8,8 +9,9 @@ const AudioRecorder = () => {
     const mediaRecorderRef = useRef(null);
     const chunkRecorderRef = useRef(null);
     const chunkIntervalRef = useRef(null);
-    const audioRef = useRef(null); // Reference for the audio player
+    const audioRef = useRef(null);
     const socketRef = useRef(null);
+
 
     const languages = [
         'Afrikaans', 'Arabic', 'Armenian', 'Azerbaijani', 'Belarusian', 'Bosnian', 'Bulgarian', 'Catalan',
@@ -23,10 +25,10 @@ const AudioRecorder = () => {
 
     useEffect(() => {
         socketRef.current = io('http://localhost:3001');
-        
+
         socketRef.current.on('chunkProcessed', (data) => {
             const { translatedText: newChunk } = data;
-            setTranslation(prev => `${prev} ${newChunk}`.trim());
+            setTranslation(prev => prev.length ? `${prev} ${newChunk}` : newChunk);
         });
 
         socketRef.current.on('completeAudioProcessed', (data) => {
@@ -39,7 +41,6 @@ const AudioRecorder = () => {
             const audioBlob = new Blob([new Uint8Array(atob(data.audio).split('').map(c => c.charCodeAt(0)))], { type: 'audio/mp3' });
             const audioUrl = URL.createObjectURL(audioBlob);
             audioRef.current.src = audioUrl;
-            audioRef.current.play().catch(e => console.error('Error playing audio:', e));
         });
 
         socketRef.current.on('ttsError', (error) => {
@@ -81,7 +82,7 @@ const AudioRecorder = () => {
                 chunkRecorder.stop();
                 chunkRecorder.start();
             }
-        }, 1500);
+        }, 1500); // Change this to the length of chunks you want for real-time processing
         chunkRecorder.start();
     };
 
@@ -98,18 +99,48 @@ const AudioRecorder = () => {
         setIsRecording(false);
     };
 
+    // Use the isRecording state to toggle the button class and functionality
+    const recordButtonClass = isRecording ? 'record-btn recording' : 'record-btn';
+    const toggleRecording = () => {
+        if (isRecording) {
+            stopRecording();
+        } else {
+            startRecording();
+        }
+        setIsRecording(!isRecording);
+    };
+
     return (
-        <div>
-            <button onClick={startRecording} disabled={isRecording}>Start Recording</button>
-            <button onClick={stopRecording} disabled={!isRecording}>Stop Recording</button>
-            <select value={language} onChange={(e) => setLanguage(e.target.value)} disabled={isRecording}>
-                {languages.map(lang => (
-                    <option key={lang} value={lang}>{lang}</option>
-                ))}
-            </select>
-            <div>
-                <p>Translation: {translation}</p>
-                <audio ref={audioRef} controls style={{ width: '100%' }}></audio>
+        <div className="translate-container">
+            {translation && (
+                <div className="translation-output">
+                    <div className='play-button'>
+                        <button className="play-btn" onClick={() => audioRef.current.play()} />
+                    </div>
+                    <p className="translation-text">{translation}</p>
+                </div>
+            )}
+            <audio ref={audioRef} style={{ display: 'none' }}></audio>
+            <div className="controls">
+                <div className='language-selector'>
+                    <h4 className="header">Translate to:</h4>
+                    <select 
+                        className="language-select" 
+                        value={language} 
+                     onChange={(e) => setLanguage(e.target.value)} 
+                      disabled={isRecording}
+                    >
+                        {languages.map(lang => (
+                            <option key={lang} value={lang}>{lang}</option>
+                         ))}
+                    </select>
+                </div>
+                <div className="record-container">
+                    <button 
+                        className={`record-btn ${isRecording ? 'recording' : ''}`} 
+                        onClick={toggleRecording}
+                    />
+                </div>
             </div>
         </div>
     );

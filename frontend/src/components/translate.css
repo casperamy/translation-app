@@ -1,0 +1,117 @@
+.translate-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    color: white;
+    background-color: #fff; /* Adjust the color to match your design */
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+.header {
+    font-family: 'Poppins', sans-serif;
+    font-size: 24px;
+    margin: 0;
+    margin-bottom: 32px;
+    align-items: center;
+    display: flex;
+}
+
+.controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 32px;
+    flex-direction: column;
+}
+
+.language-select {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+    color: white;
+    width: 200px;
+    background-color: #555; /* Adjust the color to match your design */
+    border: none;
+    padding: 8px 12px 8px 12px;
+    border-radius: 6px;
+}
+
+.language-selector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.record-container {
+    position: relative;
+}
+
+.record-btn {
+    background-color: black; /* Default background */
+    border: none;
+    border-radius: 50%;
+    width: 80px; /* Adjust as needed */
+    height: 80px; /* Adjust as needed */
+    background-image: url('./microphone.svg');
+    background-size: 50%; /* Adjust size inside the button as needed */
+    background-repeat: no-repeat;
+    background-position: center;
+    cursor: pointer;
+}
+
+.record-btn.recording {
+    background-color: red; /* Recording state */
+}
+
+.translation-output {
+    display: flex;
+    align-items: center;
+    max-width: 60%;
+    background-color: #222; /* Adjust the color to match your design */
+    color: white;
+    padding: 20px;
+    border-radius: 20px;
+    margin-top: 20px;
+}
+
+.play-btn {
+    background-image: url('./speaker.svg');
+    background-color: transparent;
+    border: none;
+    width: 24px; /* Adjust as needed */
+    height: 24px; /* Adjust as needed */
+    background-size: cover;
+    cursor: pointer;
+    padding: 16px;
+}
+
+.play-button {
+    background-color: blue;
+    border: 1px;
+    border-color: #fff;
+    border-radius: 100%;
+    background-size: cover;
+    cursor: pointer;
+    padding: 16px;
+    margin-right: 48px;
+}
+
+.translation-text {
+    font-family: 'Inter', sans-serif;
+    font-size: 16px;
+}
+
+/* Additional global styles for body to reset margins and set font */
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: #333; /* Adjust the color to match your design */
+}
+
+/* Hide the audio element from the UI */
+audio {
+    display: none;
+}
