@@ -3,10 +3,13 @@ import io from 'socket.io-client';
 
 const AudioRecorder = () => {
     const [isRecording, setIsRecording] = useState(false);
-    const [translatedTexts, setTranslatedTexts] = useState([]);
+    const [translation, setTranslation] = useState(''); // Combined state for real-time and complete translation
     const [language, setLanguage] = useState('English');
     const mediaRecorderRef = useRef(null);
+    const chunkRecorderRef = useRef(null);
+    const chunkIntervalRef = useRef(null);
     const socketRef = useRef(null);
+
 
     const languages = [
       'Afrikaans', 'Arabic', 'Armenian', 'Azerbaijani', 'Belarusian', 'Bosnian', 'Bulgarian', 'Catalan',
@@ -20,10 +23,17 @@ const AudioRecorder = () => {
 
     useEffect(() => {
         socketRef.current = io('http://localhost:3001');
-
+        
         socketRef.current.on('chunkProcessed', (data) => {
+            const { translatedText: newChunk } = data;
+            // Update translation in real-time
+            setTranslation(prev => `${prev} ${newChunk}`.trim());
+        });
+
+        socketRef.current.on('completeAudioProcessed', (data) => {
             const { translatedText } = data;
-            setTranslatedTexts(prev => [...prev, translatedText]);
+            // Replace real-time translation with complete translation
+            setTranslation(translatedText);
         });
 
         return () => {
@@ -39,18 +49,42 @@ const AudioRecorder = () => {
         }
     };
 
+    const handleChunkDataAvailable = (event) => {
+        if (event.data.size > 0 && socketRef.current) {
+            socketRef.current.emit('sendChunkForImmediateProcessing', { buffer: event.data, language });
+        }
+    };
+
     const startRecording = async () => {
         setIsRecording(true);
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // MediaRecorder for continuous recording
         const mediaRecorder = new MediaRecorder(stream);
         mediaRecorder.ondataavailable = handleDataAvailable;
         mediaRecorder.start();
         mediaRecorderRef.current = mediaRecorder;
+
+        // MediaRecorder for chunk recording
+        const chunkRecorder = new MediaRecorder(stream);
+        chunkRecorder.ondataavailable = handleChunkDataAvailable;
+        chunkRecorderRef.current = chunkRecorder;
+        chunkIntervalRef.current = setInterval(() => {
+            if (chunkRecorder.state === "recording") {
+                chunkRecorder.stop();
+                chunkRecorder.start();
+            }
+        }, 1500);
+        chunkRecorder.start();
     };
 
     const stopRecording = () => {
         if (mediaRecorderRef.current) {
             mediaRecorderRef.current.stop();
+        }
+        if (chunkRecorderRef.current) {
+            clearInterval(chunkIntervalRef.current);
+            chunkRecorderRef.current.stop();
         }
         setIsRecording(false);
     };
@@ -65,9 +99,7 @@ const AudioRecorder = () => {
                 ))}
             </select>
             <div>
-                {translatedTexts.map((text, index) => (
-                    <p key={index}>Translated Text: {text}</p>
-                ))}
+                <p>Translation: {translation}</p>
             </div>
         </div>
     );

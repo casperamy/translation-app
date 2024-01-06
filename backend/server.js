@@ -16,33 +16,70 @@ const io = new Server(server, {
 
 io.on('connection', (socket) => {
     socket.on('sendChunk', (data) => {
-        const { buffer, language } = data;
-        const fileName = `audio_${Date.now()}.webm`;
-        const filePath = `/tmp/${fileName}`;
-        fs.writeFileSync(filePath, Buffer.from(new Uint8Array(buffer)));
+        processAudio(data, false, socket);
+    });
 
-        console.log(`Processing file: ${filePath}`);
-        exec(`python3 speech_processing.py ${filePath}`, (error, stdout, stderr) => {
-            if (error) {
-                console.error('Error in speech_processing:', error);
-                return;
-            }
-            console.log('Speech processing output:', stdout);
-            const chunkUrls = stdout.trim().split('\n');
+    socket.on('sendChunkForImmediateProcessing', (data) => {
+        processAudio(data, true, socket);
+    });
 
+    socket.on('disconnect', () => {
+        console.log('User disconnected');
+    });
+});
+
+const processAudio = (data, isChunk, socket) => {
+    const { buffer, language } = data;
+    const fileName = `audio_${Date.now()}.webm`;
+    const filePath = `/tmp/${fileName}`;
+    fs.writeFileSync(filePath, Buffer.from(new Uint8Array(buffer)));
+
+    console.log(`Processing file: ${filePath}`);
+    exec(`python3 speech_processing.py ${filePath}`, (error, stdout, stderr) => {
+        if (error) {
+            console.error('Error in speech_processing:', error);
+            return;
+        }
+        console.log('Speech processing output:', stdout);
+        const chunkUrls = stdout.trim().split('\n');
+
+        if (!isChunk) {
+            let translations = new Array(chunkUrls.length);
+            let chunksProcessed = 0;
+
+            chunkUrls.forEach((url, index) => {
+                const fileKey = url.split('/').pop();
+                exec(`python3 process_audio.py ${fileKey} ${language}`, (error, stdout, stderr) => {
+                    chunksProcessed++;
+                    if (error) {
+                        console.error('Error in process_audio:', error);
+                        return;
+                    }
+                    try {
+                        const parsedOutput = JSON.parse(stdout);
+                        translations[index] = parsedOutput.translatedText;
+
+                        if (chunksProcessed === chunkUrls.length) {
+                            const completeTranslation = translations.filter(t => t).join(" ");
+                            socket.emit('completeAudioProcessed', { translatedText: completeTranslation.trim() });
+                        }
+                    } catch (parseError) {
+                        console.error('Error parsing process_audio output:', parseError);
+                    }
+                });
+            });
+        } else {
             chunkUrls.forEach(url => {
                 if (url.trim()) {
                     const fileKey = url.split('/').pop();
-                    console.log(`Processing audio file: ${fileKey}`);
                     exec(`python3 process_audio.py ${fileKey} ${language}`, (error, stdout, stderr) => {
                         if (error) {
                             console.error('Error in process_audio:', error);
                             return;
                         }
-                        console.log('process_audio output:', stdout);
                         try {
                             const parsedOutput = JSON.parse(stdout);
-                            socket.emit('chunkProcessed', parsedOutput);
+                            socket.emit('chunkProcessed', { translatedText: parsedOutput.translatedText });
                         } catch (parseError) {
                             console.error('Error parsing process_audio output:', parseError);
                         }
@@ -51,13 +88,9 @@ io.on('connection', (socket) => {
                     console.error('Empty URL received');
                 }
             });
-        });
+        }
     });
-
-    socket.on('disconnect', () => {
-        console.log('User disconnected');
-    });
-});
+};
 
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
